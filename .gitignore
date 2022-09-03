@@ -1,0 +1,6 @@
+*.dev
+*.tab.h
+*.tab.c
+*.yy.c
+*.o
+mpis-routectl
