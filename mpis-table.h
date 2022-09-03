@@ -11,13 +11,16 @@
 
 typedef struct _mpis_table {
     uint32_t selector;
+    uint32_t selector_mask; // valid if selector_type == STYPE_FROM
+
     uint32_t target;
-    uint32_t target_data; // for now, only when target_type = TTYPE_SWAP. data is cutoff-ttl value.
+    uint32_t target_mask; // valid if target_type is TTYPE_DECAP
+
+    // for now, only valid when target_type = TTYPE_SWAP. data is cutoff-ttl value.
+    uint8_t target_data;
 
     uint8_t selector_type;
     uint8_t target_type;
-    uint8_t selector_mask;
-    uint8_t target_mask;
 
     struct _mpis_table *next;
 } mpis_table;
