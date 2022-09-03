@@ -10,11 +10,10 @@ debug: mpis-routectl
 
 MPIS_ROUTECTL_OBJS=mpis-routectl.o mpis-table.o mpis-table.tab.o mpis-table.yy.o
 
-.SUFFIXES: .c .o .tab.c .yy.c
 .PHONY: all debug clean
 
 mpis-routectl: $(MPIS_ROUTECTL_OBJS)
-	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 %.tab.c: %.y
 	$(BISON) -d $<
@@ -24,6 +23,8 @@ mpis-routectl: $(MPIS_ROUTECTL_OBJS)
 
 %.o: %.c
 	$(CC) -c -o $@ $< $(CFLAGS)
+
+%.c: %.y
 
 clean:
 	rm -f *.o *.tab.c *.yy.c mpis-routectl

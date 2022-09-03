@@ -38,9 +38,15 @@ mips_table
     | mips_entry
 
 mips_entry
-    : FROM IP SLASH NUMBER ENCAP IP CUTOFF_TTL NUMBER
-    | FROM IP SWAP IP CUTOFF_TTL NUMBER
-    | TO IP DECAP IP SLASH NUMBER
+    : FROM IP SLASH NUMBER ENCAP IP CUTOFF_TTL NUMBER {
+        add_entry(STYPE_FROM, $2, $4, TTYPE_ENCAP, $6, 0, $8);
+    }
+    | TO IP SWAP IP CUTOFF_TTL NUMBER {
+        add_entry(STYPE_FROM, $2, 0, TTYPE_SWAP, $4, 0, $6);
+    }
+    | TO IP DECAP IP SLASH NUMBER {
+        add_entry(STYPE_TO, $2, 0, TTYPE_DECAP, $4, $6, 0);
+    }
 
 %%
 
