@@ -11,9 +11,10 @@
 
 typedef struct _mpis_table {
     uint32_t selector;
-    uint32_t selector_mask; // valid if selector_type == STYPE_FROM
     uint32_t target;
-    uint32_t target_mask; // valid if target_type == TTYPE_DECAP
+
+    uint16_t selector_mask_last16; // valid if selector_type == STYPE_FROM
+    uint16_t target_mask_last16; // valid if target_type == TTYPE_DECAP
 
     uint8_t selector_cidr; // valid if selector_type == STYPE_FROM
     uint8_t target_cidr; // valid if target_type is TTYPE_DECAP
