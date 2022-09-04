@@ -19,7 +19,8 @@ void usage(const char *me) {
 }
 
 int ebpf_loadprog(const char* progname, struct bpf_object** to, int *fd);
-int populate_table(struct bpf_object *obj, const mpis_table *table, int *dfd, int *efd);
+int populate_table(struct bpf_object *obj, const mpis_table *table, size_t n_entries, int *dfd, int *efd);
+
 int attach(int prog_fd, unsigned int ifindex, int flags);
 int detach(unsigned int ifindex, int flags);
 
@@ -30,6 +31,7 @@ int main(int argc, char **argv) {
     struct bpf_object *obj;
     char op = 'a', opt;
     const char *ebpf_name = NULL, *table_file_name = NULL;
+    ssize_t n_entries;
 
     while ((opt = getopt(argc, argv, "gadrst:e:")) != -1) {
         switch (opt) {
@@ -61,9 +63,9 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    ret = parse_routes(table_file_name, &table);
+    n_entries = parse_routes(table_file_name, &table);
 
-    if (ret < 0) {
+    if (n_entries < 0) {
         usage(argv[0]);
         return 1;
     }
@@ -73,7 +75,7 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    ret = populate_table(obj, table, &dmap_fd, &emap_fd);
+    ret = populate_table(obj, table, (size_t) n_entries, &dmap_fd, &emap_fd);
     if (ret < 0) {
         return 1;
     }
@@ -156,10 +158,11 @@ int ebpf_loadprog(const char* progname, struct bpf_object** to, int *fd) {
     return 0;
 }
 
-int populate_table(struct bpf_object *obj, const mpis_table *table, int *dfd, int *efd) {
+int populate_table(struct bpf_object *obj, const mpis_table *table, size_t n_entries, int *dfd, int *efd) {
     int ret, emap_fd, dmap_fd;
     const mpis_table *tptr;
     struct bpf_lpm_trie_key *key;
+    size_t i;
 
     emap_fd = bpf_object__find_map_fd_by_name(obj, "encap_map");
     dmap_fd = bpf_object__find_map_fd_by_name(obj, "decap_swap_map");
@@ -169,12 +172,13 @@ int populate_table(struct bpf_object *obj, const mpis_table *table, int *dfd, in
         return -1;
     }
 
-    tptr = table;
     key = malloc(sizeof(struct bpf_lpm_trie_key) + 4);
 
-    while (tptr != NULL) {
+    for (i = 0; i < n_entries; ++i) {
+        tptr = &table[i];
+
         if (tptr->target_type == TTYPE_ENCAP) {
-            key->prefixlen = tptr->selector_cidr;
+            key->prefixlen = tptr->cidr;
             memcpy(key->data, &tptr->selector, sizeof(uint32_t));
 
             ret = bpf_map_update_elem(emap_fd, key, tptr, 0);
@@ -191,8 +195,6 @@ int populate_table(struct bpf_object *obj, const mpis_table *table, int *dfd, in
                 return -1;
             }
         }
-
-        tptr = tptr->next;
     }
 
     *dfd = dmap_fd;
