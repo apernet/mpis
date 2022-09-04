@@ -48,10 +48,16 @@ static __always_inline void cksum(struct iphdr *ip) {
 }
 
 static __always_inline int do_encap(struct iphdr *ip, mpis_table *entry) {
+    if (entry->target_data >= ip->ttl) {
+        ip->daddr = entry->target;
+        goto encap_send;
+    }
+
     ip->id = (((__u16 *) (&ip->saddr))[1] & ~entry->selector_mask_last16) | (ip->id & entry->selector_mask_last16);
     ip->saddr = ip->daddr;
     ip->daddr = entry->target;
 
+encap_send:
     cksum(ip);
     return XDP_PASS;
 }
@@ -61,6 +67,10 @@ static __always_inline int do_decap_or_swap(struct iphdr *ip, mpis_table *entry)
         ip->daddr = ip->saddr;
         ip->saddr = entry->target | ((ip->id & ~entry->target_mask_last16) << 16);
     } else if (entry->target_type == TTYPE_SWAP) {
+        if (entry->target_data >= ip->ttl) {
+            ip->saddr = entry->target | ((ip->id & ~entry->target_mask_last16) << 16);
+        }
+
         ip->daddr = entry->target;
     }
 

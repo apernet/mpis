@@ -69,7 +69,7 @@ ip -netns "${node2}" -4 addr add 55.66.77.88/32 dev lo
 ip -netns "${node2}" link set lo up
 
 cat > test-send.cfg << EOF
-from 1.2.3.0/24 encap 10.0.0.254 cutoff-ttl 1
+from 1.2.3.0/24 encap 10.0.0.254 cutoff-ttl 10
 EOF
 
 cat > test-recv.cfg << EOF
@@ -82,17 +82,37 @@ ip netns exec "${send}" ./mpis-routectl -t test-send.cfg -e mpis-ebpf.o link-1s
 # mpis on receiver
 ip netns exec "${recv}" ./mpis-routectl -t test-recv.cfg -e mpis-ebpf.o link-rs
 
-# node1: keep ping node2
-ip netns exec "${node1}" ping -I 1.2.3.4 5.6.7.8 > /dev/null 2>&1 &
-ping_pid=$!
+ip netns exec "${node1}" ping -I 1.2.3.4 5.6.7.8 -c10 > /dev/null 2>&1 &
+ping_pid_1=$!
 
-sleep 1
+echo '==== tests started ===='
 
-timeout 5s ip netns exec "${send}" tcpdump -i link-sr -n -l -vvvvvv 'icmp and src 5.6.7.8 and dst 10.0.0.254' -c1 > /dev/null 2>&1 || echo 'test failed: sender-rewrite'
-timeout 5s ip netns exec recv tcpdump -i link-rs -n -l -vvvvvv 'icmp and src 1.2.3.4 and dst 5.6.7.8' -c1  > /dev/null 2>&1 || echo 'test failed: receiver-rewrite'
+echo -n 'testing encap... '
+timeout 5s ip netns exec "${send}" tcpdump -i link-sr -n 'icmp and src 5.6.7.8 and dst 10.0.0.254' -c1 > /dev/null 2>&1 && echo 'ok' || echo 'failed'
 
-kill $ping_pid
+echo -n 'testing decap... '
+timeout 5s ip netns exec "${recv}" tcpdump -i link-rs -n 'icmp and src 1.2.3.4 and dst 5.6.7.8' -c1  > /dev/null 2>&1 && echo 'ok' || echo 'failed'
 
-read -p 'all tests passed; you may still play with the netns now, or press enter to cleanup'
+ip netns exec "${node1}" ping -I 11.22.33.44 55.66.77.88 -c10 > /dev/null 2>&1 &
+ping_pid_2=$!
+
+echo -n 'testing sender-passthrough... '
+timeout 5s ip netns exec "${send}" tcpdump -i link-sr -n 'icmp and src 11.22.33.44 and dst 55.66.77.88' -c1 > /dev/null 2>&1 && echo 'ok' || echo 'failed'
+
+echo -n 'testing receiver-passthrough... '
+timeout 5s ip netns exec "${recv}" tcpdump -i link-rs -n 'icmp and src 11.22.33.44 and dst 55.66.77.88' -c1  > /dev/null 2>&1 && echo 'ok' || echo 'failed'
+
+ip netns exec "${node1}" ping -t5 -I 1.2.3.4 55.66.77.88 -c10 > /dev/null 2>&1 &
+ping_pid_3=$!
+
+echo -n 'testing ttl-cutoff... '
+timeout 5s ip netns exec "${send}" tcpdump -i link-sr -n 'icmp and src 1.2.3.4 and dst 10.0.0.254' -c1 > /dev/null 2>&1 && echo 'ok' || echo 'failed'
+
+kill $ping_pid_1
+kill $ping_pid_2
+kill $ping_pid_3
+
+read -p 'all tests completed; you may continue to play with the netns, or press enter to cleanup and exit. '
+
 wait
 
