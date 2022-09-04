@@ -174,7 +174,7 @@ int populate_table(struct bpf_object *obj, const mpis_table *table, int *dfd, in
 
     while (tptr != NULL) {
         if (tptr->selector_type == STYPE_FROM) {
-            key->prefixlen = tptr->selector_mask;
+            key->prefixlen = tptr->selector_cidr;
             memcpy(key->data, &tptr->selector, sizeof(uint32_t));
 
             ret = bpf_map_update_elem(emap_fd, key, tptr, 0);

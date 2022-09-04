@@ -19,16 +19,18 @@ mpis_table *get_table() {
     return table;
 }
 
-void add_entry(uint8_t selector_type, uint32_t selector, uint8_t selector_mask, uint8_t target_type, uint32_t target, uint8_t target_mask, uint32_t target_data) {
+void add_entry(uint8_t selector_type, uint32_t selector, uint8_t selector_cidr, uint8_t target_type, uint32_t target, uint8_t target_cidr, uint32_t target_data) {
     mpis_table *current_entry = malloc(sizeof(mpis_table)), *last_entry = table;
     memset(current_entry, 0, sizeof(mpis_table));
 
     current_entry->selector_type = selector_type;
     current_entry->selector = selector;
-    current_entry->selector_mask = selector_mask;
+    current_entry->selector_cidr = selector_cidr;
+    current_entry->selector_mask = ~((1 << (32 - selector_cidr)) - 1);
     current_entry->target_type = target_type;
     current_entry->target = target;
-    current_entry->target_mask = target_mask;
+    current_entry->target_cidr = target_cidr;
+    current_entry->target_mask = ~((1 << (32 - target_cidr)) - 1);
     current_entry->target_data = target_data;
 
     if (table == NULL) {
