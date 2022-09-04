@@ -27,6 +27,9 @@ MPIS_ROUTECTL_OBJS=mpis-routectl.o mpis-table.o mpis-table.tab.o mpis-table.yy.o
 mpis-routectl: $(MPIS_ROUTECTL_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS)
 
+%.c: %.y
+	# pass
+
 %.tab.c: %.y
 	$(BISON) -d $<
 
@@ -35,8 +38,6 @@ mpis-routectl: $(MPIS_ROUTECTL_OBJS)
 
 %.o: %.c
 	$(CC) -c -o $@ $< $(CFLAGS)
-
-%.c: %.y
 
 $(LIBBPF):
 	@if [ ! -d $(LIBBPF_DIR) ]; then \
