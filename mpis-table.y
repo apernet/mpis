@@ -42,22 +42,24 @@ mips_table
 
 mips_entry
     : IIF IDENT SRC IP SLASH NUMBER ENCAP IP CUTOFF_TTL NUMBER {
-        add_entry($2, $4, $6, TTYPE_ENCAP, $8, 0, $10);
+        add_entry(TTYPE_ENCAP, $2, $4, $8, $6, $10);
         free($2);
     }
     | IIF IDENT DST IP SWAP IP CUTOFF_TTL NUMBER {
-        add_entry($2, $4, 0, TTYPE_SWAP, $6, 0, $8);
+        add_entry(TTYPE_SWAP, $2, $4, $6, 0, $8);
         free($2);
     }
     | IIF IDENT DST IP DECAP IP SLASH NUMBER {
-        add_entry($2, $4, 0, TTYPE_DECAP, $6, $8, 0);
+        add_entry(TTYPE_DECAP, $2, $4, $6, $8, 0);
         free($2);
     }
 
 %%
 
-int parse_routes(const char *filename, mpis_table **table) {
+ssize_t parse_routes(const char *filename, mpis_table **table) {
+    size_t sz = 0;
     _filename = filename;
+    
 
     FILE *f = fopen(filename, "r");
     if (!f) {
@@ -73,9 +75,13 @@ int parse_routes(const char *filename, mpis_table **table) {
 
     end_table();
 
-    *table = get_table();
+    *table = get_table(&sz);
 
-    return get_retval();
+    if (get_retval() < 0) {
+        return -1;
+    }
+
+    return sz;
 }
 
 void yyerror(const char *s) {
