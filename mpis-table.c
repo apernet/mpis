@@ -25,10 +25,10 @@ void add_entry(uint8_t selector_type, uint32_t selector, uint8_t selector_mask, 
 
     current_entry->selector_type = selector_type;
     current_entry->selector = selector;
-    current_entry->selector_mask = htonl(~(0xffffffff << selector_mask));
+    current_entry->selector_mask = selector_mask;
     current_entry->target_type = target_type;
     current_entry->target = target;
-    current_entry->target_mask = htonl(~(0xffffffff << target_mask));
+    current_entry->target_mask = target_mask;
     current_entry->target_data = target_data;
 
     if (table == NULL) {
