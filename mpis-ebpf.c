@@ -131,12 +131,12 @@ SEC("xdp") int mpis(struct xdp_md *ctx) {
     lpm_key[0] = 32;
     lpm_key[1] = ip->saddr;
     entry = bpf_map_lookup_elem(&encap_map, &lpm_key);
-    if (entry != NULL) {
+    if (entry != NULL && entry->iif == ctx->ingress_ifindex) {
         return do_encap(ip, entry);
     }
 
     entry = bpf_map_lookup_elem(&decap_swap_map, &ip->daddr);
-    if (entry != NULL) {
+    if (entry != NULL && entry->iif == ctx->ingress_ifindex) {
         return do_decap_or_swap(ip, entry);
     }
 

@@ -26,9 +26,12 @@
 
 %union {
     uint32_t u32;
+    char *str;
 }
+
+%token <str> IDENT
 %token <u32> IP NUMBER
-%token FROM TO
+%token SRC DST IIF
 %token ENCAP DECAP SWAP CUTOFF_TTL
 %token SLASH
 
@@ -38,14 +41,17 @@ mips_table
     | mips_entry
 
 mips_entry
-    : FROM IP SLASH NUMBER ENCAP IP CUTOFF_TTL NUMBER {
-        add_entry(STYPE_FROM, $2, $4, TTYPE_ENCAP, $6, 0, $8);
+    : IIF IDENT SRC IP SLASH NUMBER ENCAP IP CUTOFF_TTL NUMBER {
+        add_entry($2, $4, $6, TTYPE_ENCAP, $8, 0, $10);
+        free($2);
     }
-    | TO IP SWAP IP CUTOFF_TTL NUMBER {
-        add_entry(STYPE_FROM, $2, 0, TTYPE_SWAP, $4, 0, $6);
+    | IIF IDENT DST IP SWAP IP CUTOFF_TTL NUMBER {
+        add_entry($2, $4, 0, TTYPE_SWAP, $6, 0, $8);
+        free($2);
     }
-    | TO IP DECAP IP SLASH NUMBER {
-        add_entry(STYPE_TO, $2, 0, TTYPE_DECAP, $4, $6, 0);
+    | IIF IDENT DST IP DECAP IP SLASH NUMBER {
+        add_entry($2, $4, 0, TTYPE_DECAP, $6, $8, 0);
+        free($2);
     }
 
 %%

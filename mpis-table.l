@@ -13,12 +13,16 @@
 
 \#[^\n]* {}
 
-from {
-    return FROM;
+src {
+    return SRC;
 }
 
-to {
-    return TO;
+dst {
+    return DST;
+}
+
+iif {
+    return IIF;
 }
 
 encap {
@@ -28,7 +32,6 @@ encap {
 decap {
     return DECAP;
 }
-
 
 swap {
     return SWAP;
@@ -50,6 +53,11 @@ cutoff-ttl {
 [0-9]+ {
     yylval.u32 = atoi(yytext);
     return NUMBER;
+}
+
+[a-zA-Z]+[a-zA-Z0-9_\-]* {
+    yylval.str = strdup(yytext);
+    return IDENT;
 }
 
 %%

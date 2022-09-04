@@ -173,7 +173,7 @@ int populate_table(struct bpf_object *obj, const mpis_table *table, int *dfd, in
     key = malloc(sizeof(struct bpf_lpm_trie_key) + 4);
 
     while (tptr != NULL) {
-        if (tptr->selector_type == STYPE_FROM) {
+        if (tptr->target_type == TTYPE_ENCAP) {
             key->prefixlen = tptr->selector_cidr;
             memcpy(key->data, &tptr->selector, sizeof(uint32_t));
 
