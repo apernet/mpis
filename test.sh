@@ -131,13 +131,17 @@ echo 'running speedtest (node1 <- node2)... '
 ip netns exec "${node2}" iperf3 -s -1 > /dev/null 2>&1 &
 iperf_pid_1=$!
 
-ip netns exec "${node1}" iperf3 -Rc 5.6.7.8
+sleep 1
+
+ip netns exec "${node1}" iperf3  -B 1.2.3.4 -Rc 5.6.7.8
 
 echo 'running speedtest (node2 <- node1)... '
 ip netns exec "${node2}" iperf3 -s -1 > /dev/null 2>&1 &
 iperf_pid_2=$!
 
-ip netns exec "${node1}" iperf3 -c 5.6.7.8
+sleep 1
+
+ip netns exec "${node1}" iperf3 -B 1.2.3.4 -c 5.6.7.8
 
 kill $iperf_pid_1 || true
 kill $iperf_pid_2 || true

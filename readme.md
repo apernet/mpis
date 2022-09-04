@@ -148,8 +148,7 @@ For example, to run on `eth0` and `eth1`, using `routes.conf` as route configura
 $ sudo ./mpis-routectl -t routes.conf -e mpis-ebpf.o eth0 eth1
 ```
 
-If it fails, try running in SKB mode (`-s`).
-
+If it fails, try running in SKB mode (`-s`). Note that the error `libbpf: Error in bpf_create_map_xattr(encap_map):Invalid argument(-22). Retrying without BTF.` can be safely ignored.
 
 ### Misc
 
