@@ -63,7 +63,7 @@ ssize_t parse_routes(const char *filename, mpis_table **table) {
 
     FILE *f = fopen(filename, "r");
     if (!f) {
-        log_fatal("failed to open config file %s", filename);
+        log_fatal("failed to open config file %s\n", filename);
         return -1;
     }
 
