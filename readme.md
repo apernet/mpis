@@ -3,9 +3,9 @@ MPIS (Multiprotocol IP Switching)
 
 MPIS is an eBPF-based "tunneling" technique. The word "tunnel" is stated in quotes since this is not actually a tunnel. It also has the benefit of not losing any MTU during "tunneling."
 
-It does come at a cost, though. Namely: 
+It does come some costs. Namely: 
 
-- To use this tunnel, you must have a connection that does not enforce source address filtering (a.k.a. Reverse Path Filtering);
+- To use this tunnel, you must have a connection that does not enforce source address filtering (a.k.a. reverse path filtering);
 - For each tunnel endpoint, it is only possible to pass traffic for hosts within the same subnet. The size of the source subnet can be up to /16;
 - The ability of IP-layer fragmentation may be affected, depending on the size of the subnet you decided to tunnel. 
 
@@ -28,7 +28,7 @@ ip->daddr = ip->saddr;
 ip->saddr = entry->tunneled_subnet | ((ip->id & ~tunneled_subnet_mask_last_16bit) << 16);
 ```
 
-...it swaps the source and destination address back, then does a bitwise-or with the IP ID field to recover the real sender IP. At this point, we have recovered the original IP datagram (8-bits in the ID field are lost, but what should not have too big of an impact). 
+...it swaps the source and destination address back, then does a bitwise-or with the IP ID field to recover the real sender IP. At this point, we have recovered the original IP datagram (8-bits in the ID field are lost, but that should not have too big of an impact). 
 
 Let's consider this more realistic example: say, you have two sites - one at SJC and the other one at LAX. You want a tunnel between the sites. You don't want to get the expensive L2 transit; you also don't have access to ISP's jumbo-frame-enabled IP transit. You don't want to GRE or IPIP - they drop your MTU. What's the fun in that? Let's assume that: 
 
@@ -84,6 +84,7 @@ To build MPIS:
 $ sudo apt install build-essential clang llvm libelf-dev gcc-multilib linux-headers-`dpkg --print-architecture`
 $ git clone https://github.com/apernet/mpis
 $ cd mpis
+$ git submodule update --init
 $ make
 ```
 
