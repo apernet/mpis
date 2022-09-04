@@ -53,7 +53,7 @@ static __always_inline int do_encap(struct iphdr *ip, mpis_table *entry) {
         goto encap_send;
     }
 
-    ip->id = (((__u16 *) (&ip->saddr))[1] & ~entry->mask_last16) | (ip->id & entry->mask_last16);
+    ip->id = (((__u16 *) &ip->saddr)[1] & entry->mask_last16) | (ip->id & ~entry->mask_last16);
     ip->saddr = ip->daddr;
     ip->daddr = entry->target;
 
@@ -65,7 +65,7 @@ encap_send:
 static __always_inline int do_decap_or_swap(struct iphdr *ip, mpis_table *entry) {
     if (entry->target_type == TTYPE_DECAP) {
         ip->daddr = ip->saddr;
-        ip->saddr = entry->target | ((ip->id & ~entry->mask_last16) << 16);
+        ip->saddr = bpf_htonl(bpf_ntohl(entry->target) | bpf_ntohs((ip->id & entry->mask_last16)));
     } else if (entry->target_type == TTYPE_SWAP) {
         if (entry->target_data >= ip->ttl) {
             return XDP_PASS;
