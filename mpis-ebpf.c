@@ -68,7 +68,7 @@ static __always_inline int do_decap_or_swap(struct iphdr *ip, mpis_table *entry)
         ip->saddr = entry->target | ((ip->id & ~entry->mask_last16) << 16);
     } else if (entry->target_type == TTYPE_SWAP) {
         if (entry->target_data >= ip->ttl) {
-            ip->saddr = entry->target | ((ip->id & ~entry->mask_last16) << 16);
+            return XDP_PASS;
         }
 
         ip->daddr = entry->target;
