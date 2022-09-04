@@ -12,7 +12,7 @@ LDFLAGS += -L$(LIBBPF_DIR)
 LIBS = -l:libbpf.a -lelf -lz
 BPF_CFLAGS += -I$(LIBBPF_DIR)/build/usr/include/ -Wall -Wextra
 
-all: CFLAGS+=-O3
+all: CFLAGS+=-O3 -g
 all: BPF_CFLAGS+=-O3 -g
 all: mpis-routectl mpis-ebpf.o
 
