@@ -88,10 +88,12 @@ ip netns exec "${send}" ./mpis-routectl -t test-send.cfg -e mpis-ebpf.o link-1s 
 # mpis on receiver
 ip netns exec "${recv}" ./mpis-routectl -t test-recv.cfg -e mpis-ebpf.o link-rs link-r2
 
-ip netns exec "${node1}" ping -I 1.2.3.4 5.6.7.8 -c20 > /dev/null 2>&1 &
-ping_pid_1=$!
+read -p 'env ready, press enter to proceed with test.'
 
 echo '==== tests started ===='
+
+ip netns exec "${node1}" ping -I 1.2.3.4 5.6.7.8 -c20 > /dev/null 2>&1 &
+ping_pid_1=$!
 
 echo -n 'testing encap... '
 timeout 5s ip netns exec "${send}" tcpdump -i link-sr -n 'icmp and src 5.6.7.8 and dst 10.0.0.254' -c1 > /dev/null 2>&1 && echo 'ok' || echo 'failed'
@@ -123,9 +125,9 @@ timeout 5s ip netns exec "${send}" tcpdump -i link-sr -n 'icmp and src 1.2.3.4 a
 echo -n 'testing fragmentation... '
 timeout 10 ip netns exec "${node1}" ping -I 1.2.3.4 5.6.7.8 -c1 > /dev/null 2>&1 && echo 'ok' || echo 'failed'
 
-kill $ping_pid_1
-kill $ping_pid_2
-kill $ping_pid_3
+kill $ping_pid_1 || true
+kill $ping_pid_2 || true
+kill $ping_pid_3 || true
 
 echo 'running speedtest (node1 <- node2)... '
 ip netns exec "${node2}" iperf3 -s -1 > /dev/null 2>&1 &
@@ -133,7 +135,7 @@ iperf_pid_1=$!
 
 sleep 1
 
-ip netns exec "${node1}" iperf3  -B 1.2.3.4 -Rc 5.6.7.8
+ip netns exec "${node1}" iperf3  -B 1.2.3.4 -Rc 5.6.7.8 || echo 'iperf failed'
 
 echo 'running speedtest (node2 <- node1)... '
 ip netns exec "${node2}" iperf3 -s -1 > /dev/null 2>&1 &
@@ -141,7 +143,7 @@ iperf_pid_2=$!
 
 sleep 1
 
-ip netns exec "${node1}" iperf3 -B 1.2.3.4 -c 5.6.7.8
+ip netns exec "${node1}" iperf3 -B 1.2.3.4 -c 5.6.7.8 || echo 'iperf failed'
 
 kill $iperf_pid_1 || true
 kill $iperf_pid_2 || true
