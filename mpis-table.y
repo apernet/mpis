@@ -36,11 +36,11 @@
 %token SLASH
 
 %%
-mips_table
-    : mips_table mips_entry
-    | mips_entry
+mpis_table
+    : mpis_table mpis_entry
+    | mpis_entry
 
-mips_entry
+mpis_entry
     : IIF IDENT SRC IP SLASH NUMBER ENCAP IP CUTOFF_TTL NUMBER {
         add_entry(TTYPE_ENCAP, $2, $4, $8, $6, $10);
         free($2);

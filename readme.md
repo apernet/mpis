@@ -88,7 +88,7 @@ $ git submodule update --init
 $ make
 ```
 
-To configure MIPS, you will need to define a MIPS route table. Syntax:
+To configure MPIS, you will need to define a MPIS route table. Syntax:
 
 ```
 iif <in-interface-name> src <network>/<length> encap <receiver> cutoff-ttl <ttl>
