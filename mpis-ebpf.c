@@ -1,5 +1,11 @@
 #include <linux/bpf.h>
+#include <linux/in.h>
+#include <linux/if_ether.h>
+#include <linux/if_packet.h>
+#include <linux/if_vlan.h>
+#include <linux/ip.h>
 #include <bpf/bpf_helpers.h>
+#include <bpf/bpf_endian.h>
 #include "mpis.h"
 #include "mpis-table.h"
 
@@ -20,8 +26,114 @@ struct {
     __uint(max_entries, MAX_ENTRIES);
 } decap_swap_map SEC(".maps");
 
+struct vlan_hdr {
+    __be16 vlan_id;
+    __be16 inner_ether_proto;
+};
+
+// todo: incremental checksum?
+static __always_inline void cksum(struct iphdr *ip) {
+    __u32 sum = 0;
+    __u16 *ptr = (__u16 *) ip;
+    __u8 i;
+
+    ip->check = 0;
+
+    #pragma clang loop unroll(full)
+    for (i = 0; i < (int) sizeof(struct iphdr) / 2; ++i) {
+        sum += *ptr++;
+    }
+
+    ip->check = ~((sum & 0xffff) + (sum >> 16));
+}
+
+static __always_inline int do_encap(struct iphdr *ip, mpis_table *entry) {
+    __u16 mask_last16 = (__u16) entry->selector_mask;
+    __u16 ip_bits = (__u16) bpf_ntohl(ip->saddr) & mask_last16;
+    __u16 id_bits = bpf_ntohs(ip->id) & (~mask_last16);
+
+    ip->id = bpf_htons(id_bits | ip_bits);
+    ip->saddr = ip->daddr;
+    ip->saddr = entry->target;
+
+    cksum(ip);
+    return XDP_PASS;
+}
+
+static __always_inline int do_decap_or_swap(struct iphdr *ip, mpis_table *entry) {
+    if (entry->target_type == TTYPE_DECAP) {
+        __u16 mask_last16 = (__u16) entry->target_mask;
+        __u32 ip_bits = bpf_ntohs(ip->id) & mask_last16;
+        ip->saddr = bpf_htonl(bpf_ntohl(entry->target) | ip_bits);
+    } else if (entry->target_type == TTYPE_SWAP) {
+        ip->daddr = entry->target;
+    }
+
+    cksum(ip);
+    return XDP_PASS;
+}
+
 SEC("xdp") int mpis(struct xdp_md *ctx) {
-    // todo
+    void *data_end = (void *)(long) ctx->data_end;
+    void *data = (void *)(long) ctx->data;
+    struct ethhdr *eth = data;
+    struct vlan_hdr *vhdr;
+    struct iphdr *ip;
+    void *l3hdr;
+    mpis_table *entry = NULL;
+    __u16 ether_proto;
+    __u32 lpm_key[2];
+
+    if (data + sizeof(struct ethhdr) > data_end) {
+        return XDP_DROP;
+    }
+
+    l3hdr = data + sizeof(struct ethhdr);
+    ether_proto = bpf_ntohs(eth->h_proto);
+
+    // vlan? just skip the header.
+    if (ether_proto == ETH_P_8021Q || ether_proto == ETH_P_8021AD) {
+        if (l3hdr + sizeof(struct vlan_hdr) > data_end) {
+            return XDP_DROP;
+        }
+        
+        vhdr = l3hdr;
+        l3hdr += sizeof(struct vlan_hdr);
+        ether_proto = vhdr->inner_ether_proto;
+    }
+
+    // qinq? just skip again.
+    if (ether_proto == ETH_P_8021Q || ether_proto == ETH_P_8021AD) {
+        if (l3hdr + sizeof(struct vlan_hdr) > data_end) {
+            return XDP_DROP;
+        }
+        
+        vhdr = l3hdr;
+        l3hdr += sizeof(struct vlan_hdr);
+        ether_proto = vhdr->inner_ether_proto;
+    }
+
+    if (ether_proto != ETH_P_IP) {
+        return XDP_PASS; // don't care
+    }
+
+    if (l3hdr + sizeof(struct iphdr) > data_end) {
+        return XDP_DROP;
+    }
+
+    ip = l3hdr;
+
+    lpm_key[0] = 32;
+    lpm_key[1] = ip->saddr;
+    entry = bpf_map_lookup_elem(&encap_map, &lpm_key);
+    if (entry != NULL) {
+        return do_encap(ip, entry);
+    }
+
+    entry = bpf_map_lookup_elem(&decap_swap_map, &ip->daddr);
+    if (entry != NULL) {
+        return do_decap_or_swap(ip, entry);
+    }
 
     return XDP_PASS;
 }
