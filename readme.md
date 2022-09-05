@@ -5,13 +5,21 @@ MPIS is an eBPF-based "tunneling" technique. The word "tunnel" is stated in quot
 
 It does come with some costs. Namely: 
 
-- To use this tunnel, you must have a connection that does not enforce source address filtering (a.k.a. reverse path filtering);
+- To use this tunnel, it's best to have a connection that does not enforce source address filtering (a.k.a. reverse path filtering);
 - For each tunnel endpoint, it is only possible to pass traffic for hosts within the same subnet. The size of the source subnet can be up to `/16`;
 - IP-layer fragmentation may be affected, depending on the size of the subnet you decided to tunnel. 
 
+...or, if your connection enforces source address filtering, but you do not care about IP-layer fragmentation, it can also work. 
+
 ### How it works
 
-Reading the drawbacks above, you might have guessed how it works. MPIS uses the IP identification field to save the sender information. The receiver then restores the info from the ID field upon reception. The sender is doing the followings:
+Reading the limitations above, you might have guessed how it works. MPIS uses the IP identification field to save the tunnel information. The receiver then restores the info from the ID field upon reception.
+
+#### Using only part of the ID field
+
+The first mode of operation, where the the IP-layer fragmentation ability is kept works like this: 
+
+The sender is doing the followings:
 
 ```c
 ip->id = (((__u16 *) &ip->saddr)[1] & entry->mask_last16) | (ip->id & ~entry->mask_last16);
@@ -76,6 +84,12 @@ Now, this packet will be delivered to `203.0.113.1`. This is your tunnel receive
 
 At this point, we can forward this packet as we normally would. 
 
+#### Using the entire ID field, fragmentation flags and fragmentation offset
+
+MPIS can also operate in another mode - where it simply overrides bit 32 to 64 (ID field, frag flags, and frag offset) of the IP header with the actual destination address, then changes the destination address to the tunnel receiver's address. The receiver can easily recover the address by copying bit 32 to 64 to the dst address field and clearing the frag-related bits.
+
+This mode keeps the original sender address, so it can pass through reverse path filtering if there's one. However, since the entire bit 32 to 64 is nuked, IP-layer fragmentation is not going to work anymore. 
+
 ### Usage
 
 To build MPIS:
@@ -99,12 +113,16 @@ iif <in-interface-name> dst <local-ip> decap <network>/<length> [flags]
 There are three types of actions: `encap`, `swap`, and `decap`. And possible `flags` are:
 
 - `bypass-linux`: Bypass Linux network stack: perform routing table lookup directly in XDP and do IP forwarding directly in XDP. Note that with this enabled, Linux will not be able to see the packet at all, including tools like `tcpdump`. 
+- `override-frag`: Use bit 32 to 64 in the IP header (frag-related bits) to store the destination instead of the source address field. This will allows MPIS to function in networks with reverse path filtering but will nuke the IP-layer fragmentation ability. 
 
 #### encap
 
-`encap` action "encapsulates" the traffic by overriding the ID field, swapping src/dst, and changing dst to the given `receiver`. `cutoff-ttl` allows you to define a TTL value, where if the TTL of the packet is lower than the given value, MPIS will not change the ID field and source IP. 
+`encap` action "encapsulates" the traffic either by:
 
-This means that if users were to do a traceroute, until the given TTL, users were actually tracing to the tunnel receiver. Hops on the path to the tunnel receiver will reply with the TTL expired message. Since that is the same path tunneled packet will actually travel, it can be useful for troubleshooting. 
+- overriding the ID field, swapping src/dst, and changing dst to the given `receiver`. (default mode)
+- overriding the entire bit 32 to 64 of the IP header with the actual destination, then setting the dst IP to the given `receiver`. (`override-frag` mode)
+
+`cutoff-ttl` allows you to define a TTL value, where if the TTL of the packet is lower than the given value, MPIS will not change the ID field and source IP. This means that if users were to do a traceroute, until the given TTL, users were actually tracing to the tunnel receiver. Hops on the path to the tunnel receiver will reply with the TTL expired message. Since that is the same path tunneled packet will actually travel, it can be useful for troubleshooting. 
 
 #### swap
 
