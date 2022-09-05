@@ -16,7 +16,7 @@ typedef struct _mpis_table {
     uint32_t target;
 
     // mask & cidr: valid if action is not swap
-    uint16_t mask_last16;
+    uint32_t mask;
     uint8_t cidr;
 
     // valid if type is not decap. data is cutoff-ttl value.

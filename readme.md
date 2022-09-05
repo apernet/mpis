@@ -22,7 +22,7 @@ The first mode of operation, where the the IP-layer fragmentation ability is kep
 The sender is doing the followings:
 
 ```c
-ip->id = (((__u16 *) &ip->saddr)[1] & entry->mask_last16) | (ip->id & ~entry->mask_last16);
+ip->id = (((__u16 *) &ip->saddr)[1] & entry->mask) | (ip->id & ~entry->mask);
 ip->saddr = ip->daddr;
 ip->daddr = entry->target;
 ```
@@ -33,7 +33,7 @@ And on the receiver side:
 
 ```c
 ip->daddr = ip->saddr;
-ip->saddr = bpf_htonl(bpf_ntohl(entry->target) | bpf_ntohs((ip->id & entry->mask_last16)));
+ip->saddr = bpf_htonl(bpf_ntohl(entry->target) | bpf_ntohs((ip->id & entry->mask)));
 ```
 
 ...it also swaps the source and destination address. It then used the pre-configured prefix and the IP restored from IP ID field to recover the sender IP. At this point, we have recovered the original IP datagram (except for the 8-bit in the ID field are lost, but that should not have too big of an impact). 
@@ -86,7 +86,7 @@ At this point, we can forward this packet as we normally would.
 
 #### Using the entire ID field, fragmentation flags and fragmentation offset
 
-MPIS can also operate in another mode - where it simply overrides bit 32 to 64 (ID field, frag flags, and frag offset) of the IP header with the actual destination address. It then changes the destination address to the tunnel receiver's address. The receiver can easily recover the address by copying bit 32 to 64 to the dst address field and clearing the frag-related bits.
+MPIS can also operate in another mode - where it simply overrides bit 32 to 64 (ID field, frag flags, and frag offset) of the IP header with the actual destination address. It then changes the destination address to the tunnel receiver's address. The receiver can easily recover the address by copying bit 32 to 64 to the dst address field and clearing the frag-related bits. Since now we have full 32 bits, the `/16` source subnet size limit is also gone.
 
 This mode keeps the original sender address, so it can pass through reverse path filtering if there's one. However, since the entire bit 32 to 64 is nuked, IP-layer fragmentation is not going to work anymore. 
 
@@ -119,7 +119,7 @@ There are three types of actions: `encap`, `swap`, and `decap`. And possible `fl
 
 `encap` action "encapsulates" the traffic either by:
 
-- overriding the ID field, swapping src/dst, and changing dst to the given `receiver`. (default mode)
+- partially overriding the ID field, swapping src/dst, and setting dst to the given `receiver`. (default mode)
 - overriding the entire bit 32 to 64 of the IP header with the actual destination, then setting the dst IP to the given `receiver`. (`override-frag` mode)
 
 `cutoff-ttl` allows you to define a TTL value, where if the TTL of the packet is lower than the given value, MPIS will not change the ID field and source IP. This means that if users were to do a traceroute, until the given TTL, users were actually tracing to the tunnel receiver. Hops on the path to the tunnel receiver will reply with the TTL expired message. Since that is the same path tunneled packet will actually travel, it can be useful for troubleshooting. 

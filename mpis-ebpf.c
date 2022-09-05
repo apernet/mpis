@@ -70,6 +70,10 @@ static __always_inline void do_decap_or_swap_frag(struct iphdr *ip, mpis_table *
     __u32 diff = 0;
 
     if (entry->target_type == TTYPE_DECAP) {
+        if ((ip->saddr & bpf_htonl(entry->mask)) != entry->target) {
+            return;
+        }
+
         put32(&ip->daddr, *(__u32 *) &ip->id, &diff);
         put32((__u32 *) &ip->id, 0, &diff);
         return end_put(&diff, &ip->check);
@@ -91,7 +95,7 @@ static __always_inline void do_encap(struct iphdr *ip, mpis_table *entry) {
         return end_put(&diff, &ip->check);
     }
 
-    put16(&ip->id, (((__u16 *) &ip->saddr)[1] & entry->mask_last16) | (ip->id & ~entry->mask_last16), &diff);
+    put16(&ip->id, (((__u16 *) &ip->saddr)[1] & entry->mask) | (ip->id & ~entry->mask), &diff);
     put32(&ip->saddr, ip->daddr, &diff);
     put32(&ip->daddr, entry->target, &diff);
     end_put(&diff, &ip->check);
@@ -102,7 +106,7 @@ static __always_inline void do_decap_or_swap(struct iphdr *ip, mpis_table *entry
 
     if (entry->target_type == TTYPE_DECAP) {
         put32(&ip->daddr, ip->saddr, &diff);
-        put32(&ip->saddr, bpf_htonl(bpf_ntohl(entry->target) | bpf_ntohs((ip->id & entry->mask_last16))), &diff);
+        put32(&ip->saddr, bpf_htonl(bpf_ntohl(entry->target) | bpf_ntohs((ip->id & entry->mask))), &diff);
         return end_put(&diff, &ip->check);
     } else if (entry->target_type == TTYPE_SWAP) {
         if (entry->target_data >= ip->ttl) {
