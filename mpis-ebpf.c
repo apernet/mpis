@@ -46,8 +46,6 @@ static __always_inline void put32(__u32 *to, __u32 new, __u32 *diff) {
 
     put16(to16, new16[0], diff);
     put16(to16 + 1, new16[1], diff);
-
-    *to = new;
 }
 
 static __always_inline void end_put(__u32 *diff, __u16 *cksum) {
