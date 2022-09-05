@@ -34,47 +34,55 @@ struct vlan_hdr {
     __be16 inner_ether_proto;
 };
 
-static __always_inline void put16(__u16 *to, __u16 new, __u16 *check) {
-    __u32 diff = *to - new;
-
-    diff = (diff + (diff >> 16)) & 0xffff; // add and carry
-    diff += *check; // add old checksum
-    
-    *check = (diff & 0xffff) + (diff >> 16); // add and carry again
+static __always_inline void put16(__u16 *to, __u16 new, __u32 *diff) {
+    __u32 tmp32 = *to - new;
+    *diff += (tmp32 - (tmp32 >= 0xffff)) & 0xffff; // add and carry
     *to = new;
 }
 
-static __always_inline void put32(__u32 *to, __u32 new, __u16 *check) {
+static __always_inline void put32(__u32 *to, __u32 new, __u32 *diff) {
     __u16 *to16 = (__u16 *) to;
     __u16 *new16 = (__u16 *) &new;
 
-    put16(to16, new16[0], check);
-    put16(to16 + 1, new16[1], check);
+    put16(to16, new16[0], diff);
+    put16(to16 + 1, new16[1], diff);
 
     *to = new;
 }
 
-static __always_inline void do_encap(struct iphdr *ip, mpis_table *entry) {
-    if (entry->target_data >= ip->ttl) {
-        return put32(&ip->daddr, entry->target, &ip->check);
+static __always_inline void end_put(__u32 *diff, __u16 *cksum) {
+    *diff = *cksum + *diff;
+    *cksum = *diff + (*diff >> 16);
+}
 
+static __always_inline void do_encap(struct iphdr *ip, mpis_table *entry) {
+    __u32 diff = 0;
+
+    if (entry->target_data >= ip->ttl) {
+        put32(&ip->daddr, entry->target, &diff);
+        return end_put(&diff, &ip->check);
     }
 
-    put16(&ip->id, (((__u16 *) &ip->saddr)[1] & entry->mask_last16) | (ip->id & ~entry->mask_last16), &ip->check);
-    put32(&ip->saddr, ip->daddr, &ip->check);
-    put32(&ip->daddr, entry->target, &ip->check);
+    put16(&ip->id, (((__u16 *) &ip->saddr)[1] & entry->mask_last16) | (ip->id & ~entry->mask_last16), &diff);
+    put32(&ip->saddr, ip->daddr, &diff);
+    put32(&ip->daddr, entry->target, &diff);
+    end_put(&diff, &ip->check);
 }
 
 static __always_inline void do_decap_or_swap(struct iphdr *ip, mpis_table *entry) {
+    __u32 diff = 0;
+
     if (entry->target_type == TTYPE_DECAP) {
-        put32(&ip->daddr, ip->saddr, &ip->check);
-        put32(&ip->saddr, bpf_htonl(bpf_ntohl(entry->target) | bpf_ntohs((ip->id & entry->mask_last16))), &ip->check);
+        put32(&ip->daddr, ip->saddr, &diff);
+        put32(&ip->saddr, bpf_htonl(bpf_ntohl(entry->target) | bpf_ntohs((ip->id & entry->mask_last16))), &diff);
+        return end_put(&diff, &ip->check);
     } else if (entry->target_type == TTYPE_SWAP) {
         if (entry->target_data >= ip->ttl) {
             return;
         }
 
-        put32(&ip->daddr, entry->target, &ip->check);
+        put32(&ip->daddr, entry->target, &diff);
+        end_put(&diff, &ip->check);
     }
 }
 
