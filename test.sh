@@ -123,7 +123,7 @@ echo -n 'testing ttl-cutoff... '
 timeout 5s ip netns exec "${send}" tcpdump -i link-sr -n 'icmp and src 1.2.3.4 and dst 10.0.0.254' -c1 > /dev/null 2>&1 && echo 'ok' || echo 'failed'
 
 echo -n 'testing fragmentation... '
-timeout 5s ip netns exec "${node1}" ping -I 1.2.3.4 5.6.7.8 -c1 > /dev/null 2>&1 && echo 'ok' || echo 'failed'
+timeout 5s ip netns exec "${node1}" ping -I 1.2.3.4 5.6.7.8 -c1 -s2000 > /dev/null 2>&1 && echo 'ok' || echo 'failed'
 
 echo -n 'testing ip options... '
 timeout 5s ip netns exec "${node1}" ping -R -I 1.2.3.4 5.6.7.8 -c1 > /dev/null 2>&1 && echo 'ok' || echo 'failed'
@@ -141,6 +141,78 @@ sleep 1
 ip netns exec "${node1}" iperf3  -B 1.2.3.4 -Rc 5.6.7.8 || echo 'iperf failed'
 
 echo 'running speedtest (node2 <- node1)... '
+ip netns exec "${node2}" iperf3 -s -1 > /dev/null 2>&1 &
+iperf_pid_2=$!
+
+sleep 1
+
+ip netns exec "${node1}" iperf3 -B 1.2.3.4 -c 5.6.7.8 || echo 'iperf failed'
+
+kill $iperf_pid_1 || true
+kill $iperf_pid_2 || true
+
+cat > test-send.cfg << EOF
+iif link-1s src 1.2.3.0/24 encap 10.0.0.254 cutoff-ttl 10 override-frag
+iif link-sr dst 10.0.0.1 decap 5.6.7.0/24 override-frag
+EOF
+
+cat > test-recv.cfg << EOF
+iif link-rs dst 10.0.0.254 decap 1.2.3.0/24 override-frag
+iif link-r2 src 5.6.7.0/24 encap 10.0.0.1 cutoff-ttl 10 override-frag
+EOF
+
+ip netns exec "${send}" ./mpis-routectl -t test-send.cfg -e mpis-ebpf.o link-1s link-sr
+ip netns exec "${recv}" ./mpis-routectl -t test-recv.cfg -e mpis-ebpf.o link-rs link-r2
+
+ip netns exec "${node1}" ping -I 1.2.3.4 5.6.7.8 -c20 > /dev/null 2>&1 &
+ping_pid_1=$!
+
+echo -n 'testing encap (override-frag)... '
+timeout 5s ip netns exec "${send}" tcpdump -i link-sr -n 'icmp and src 1.2.3.4 and dst 10.0.0.254' -c1 > /dev/null 2>&1 && echo 'ok' || echo 'failed'
+
+echo -n 'testing decap (override-frag)... '
+timeout 5s ip netns exec "${recv}" tcpdump -i link-rs -n 'icmp and src 1.2.3.4 and dst 5.6.7.8' -c1  > /dev/null 2>&1 && echo 'ok' || echo 'failed'
+
+echo -n 'testing encap (inverse, override-frag)... '
+timeout 5s ip netns exec "${recv}" tcpdump -i link-rs -n 'icmp and src 5.6.7.8 and dst 10.0.0.1' -c1 > /dev/null 2>&1 && echo 'ok' || echo 'failed'
+
+echo -n 'testing decap (inverse, override-frag)... '
+timeout 5s ip netns exec "${send}" tcpdump -i link-sr -n 'icmp and dst 1.2.3.4 and src 5.6.7.8' -c1  > /dev/null 2>&1 && echo 'ok' || echo 'failed'
+
+ip netns exec "${node1}" ping -I 11.22.33.44 55.66.77.88 -c10 > /dev/null 2>&1 &
+ping_pid_2=$!
+
+echo -n 'testing sender-passthrough (override-frag)... '
+timeout 5s ip netns exec "${send}" tcpdump -i link-sr -n 'icmp and src 11.22.33.44 and dst 55.66.77.88' -c1 > /dev/null 2>&1 && echo 'ok' || echo 'failed'
+
+echo -n 'testing receiver-passthrough (override-frag)... '
+timeout 5s ip netns exec "${recv}" tcpdump -i link-rs -n 'icmp and src 11.22.33.44 and dst 55.66.77.88' -c1  > /dev/null 2>&1 && echo 'ok' || echo 'failed'
+
+ip netns exec "${node1}" ping -t5 -I 1.2.3.4 55.66.77.88 -c10 > /dev/null 2>&1 &
+ping_pid_3=$!
+
+echo -n 'testing ttl-cutoff (override-frag)... '
+timeout 5s ip netns exec "${send}" tcpdump -i link-sr -n 'icmp and src 1.2.3.4 and dst 10.0.0.254' -c1 > /dev/null 2>&1 && echo 'ok' || echo 'failed'
+
+echo -n 'testing fragmentation (override-frag - should fail)... '
+timeout 5s ip netns exec "${node1}" ping -I 1.2.3.4 5.6.7.8 -c1 -s2000 > /dev/null 2>&1 && echo 'ok' || echo 'failed'
+
+echo -n 'testing ip options (override-frag)... '
+timeout 5s ip netns exec "${node1}" ping -R -I 1.2.3.4 5.6.7.8 -c1 > /dev/null 2>&1 && echo 'ok' || echo 'failed'
+
+kill $ping_pid_1 || true
+kill $ping_pid_2 || true
+kill $ping_pid_3 || true
+
+echo 'running speedtest (override-frag, node1 <- node2)... '
+ip netns exec "${node2}" iperf3 -s -1 > /dev/null 2>&1 &
+iperf_pid_1=$!
+
+sleep 1
+
+ip netns exec "${node1}" iperf3  -B 1.2.3.4 -Rc 5.6.7.8 || echo 'iperf failed'
+
+echo 'running speedtest (override-frag, node2 <- node1)... '
 ip netns exec "${node2}" iperf3 -s -1 > /dev/null 2>&1 &
 iperf_pid_2=$!
 
