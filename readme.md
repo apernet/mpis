@@ -86,7 +86,7 @@ At this point, we can forward this packet as we normally would.
 
 #### Using the entire ID field, fragmentation flags and fragmentation offset
 
-MPIS can also operate in another mode - where it simply overrides bit 32 to 64 (ID field, frag flags, and frag offset) of the IP header with the actual destination address, then changes the destination address to the tunnel receiver's address. The receiver can easily recover the address by copying bit 32 to 64 to the dst address field and clearing the frag-related bits.
+MPIS can also operate in another mode - where it simply overrides bit 32 to 64 (ID field, frag flags, and frag offset) of the IP header with the actual destination address. It then changes the destination address to the tunnel receiver's address. The receiver can easily recover the address by copying bit 32 to 64 to the dst address field and clearing the frag-related bits.
 
 This mode keeps the original sender address, so it can pass through reverse path filtering if there's one. However, since the entire bit 32 to 64 is nuked, IP-layer fragmentation is not going to work anymore. 
 
@@ -113,7 +113,7 @@ iif <in-interface-name> dst <local-ip> decap <network>/<length> [flags]
 There are three types of actions: `encap`, `swap`, and `decap`. And possible `flags` are:
 
 - `bypass-linux`: Bypass Linux network stack: perform routing table lookup directly in XDP and do IP forwarding directly in XDP. Note that with this enabled, Linux will not be able to see the packet at all, including tools like `tcpdump`. 
-- `override-frag`: Use bit 32 to 64 in the IP header (frag-related bits) to store the destination instead of the source address field. This will allows MPIS to function in networks with reverse path filtering but will nuke the IP-layer fragmentation ability. 
+- `override-frag`: Use bit 32 to 64 in the IP header (frag-related bits) to store the destination instead of using the source address field. This will allows MPIS to function in networks with reverse path filtering but will nuke the IP-layer fragmentation ability. 
 
 #### encap
 
@@ -126,11 +126,11 @@ There are three types of actions: `encap`, `swap`, and `decap`. And possible `fl
 
 #### swap
 
-`swap` action changes the destination address again, potentially relaying the tunneled traffic to another receiver. `cutoff-ttl` is not working correctly for `swap` yet.
+`swap` action changes the destination address again, potentially relaying the tunneled traffic to another receiver. `cutoff-ttl` is not working correctly for `swap` yet, and `override-frag` flag does nothing for `swap`.
 
 #### decap
 
-`decap` action "decapsulates" the traffic that was previously `encap`-ed by the sender.
+`decap` action "decapsulates" the traffic that was previously `encap`-ed by the sender. Encap-mode related flags, if any, must be the same with the `encap` side.
 
 ### Configuration example
 
