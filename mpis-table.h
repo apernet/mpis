@@ -8,6 +8,7 @@
 #define TTYPE_SWAP          0x03
 
 #define TFLAG_BYPASS_LINUX  0b00000001
+#define TFLAG_OVERRIDE_FRAG 0b00000010
 
 typedef struct _mpis_table {
     uint32_t iif;

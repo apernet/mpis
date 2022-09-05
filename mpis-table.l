@@ -45,6 +45,10 @@ bypass-linux {
     return BYPASS_LINUX;
 }
 
+override-frag {
+    return OVERRIDE_FRAG;
+}
+
 \/ {
     return SLASH;
 }

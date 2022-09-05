@@ -35,7 +35,7 @@
 %token SRC DST IIF
 %token ENCAP DECAP SWAP CUTOFF_TTL
 %token SLASH
-%token BYPASS_LINUX
+%token BYPASS_LINUX OVERRIDE_FRAG
 
 %type <u8> entry_flags entry_flag
 
@@ -70,6 +70,9 @@ entry_flag
     }
     | BYPASS_LINUX {
         $$ = TFLAG_BYPASS_LINUX;
+    }
+    | OVERRIDE_FRAG {
+        $$ = TFLAG_OVERRIDE_FRAG;
     }
 
 %%

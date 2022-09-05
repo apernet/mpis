@@ -53,6 +53,36 @@ static __always_inline void end_put(__u32 *diff, __u16 *cksum) {
     *cksum = *diff + (*diff >> 16);
 }
 
+static __always_inline void do_encap_frag(struct iphdr *ip, mpis_table *entry) {
+    __u32 diff = 0;
+
+    if (entry->target_data >= ip->ttl) {
+        put32(&ip->daddr, entry->target, &diff);
+        return end_put(&diff, &ip->check);
+    }
+
+    put32((__u32 *) &ip->id, ip->daddr, &diff);
+    put32(&ip->daddr, entry->target, &diff);
+    end_put(&diff, &ip->check);
+}
+
+static __always_inline void do_decap_or_swap_frag(struct iphdr *ip, mpis_table *entry) {
+    __u32 diff = 0;
+
+    if (entry->target_type == TTYPE_DECAP) {
+        put32(&ip->daddr, *(__u32 *) &ip->id, &diff);
+        put32((__u32 *) &ip->id, 0, &diff);
+        return end_put(&diff, &ip->check);
+    } else if (entry->target_type == TTYPE_SWAP) {
+        if (entry->target_data >= ip->ttl) {
+            return;
+        }
+
+        put32(&ip->daddr, entry->target, &diff);
+        end_put(&diff, &ip->check);
+    }
+}
+
 static __always_inline void do_encap(struct iphdr *ip, mpis_table *entry) {
     __u32 diff = 0;
 
@@ -145,7 +175,11 @@ SEC("xdp") int mpis(struct xdp_md *ctx) {
     lpm_key[1] = ip->saddr;
     entry = bpf_map_lookup_elem(&encap_map, &lpm_key);
     if (entry != NULL && entry->iif == ctx->ingress_ifindex) {
-        do_encap(ip, entry);
+        if (entry->target_flags & TFLAG_OVERRIDE_FRAG) {
+            do_encap_frag(ip, entry);
+        } else {
+            do_encap(ip, entry);
+        }
         matched = 1;
     }
 
@@ -153,7 +187,11 @@ SEC("xdp") int mpis(struct xdp_md *ctx) {
         entry = bpf_map_lookup_elem(&decap_swap_map, &ip->daddr);
         if (entry != NULL && entry->iif == ctx->ingress_ifindex) {
             matched = 1;
-            do_decap_or_swap(ip, entry);
+            if (entry->target_flags & TFLAG_OVERRIDE_FRAG) {
+                do_decap_or_swap_frag(ip, entry);
+            } else {
+                do_decap_or_swap(ip, entry);
+            }
         }
     }
 
