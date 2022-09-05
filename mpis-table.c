@@ -25,7 +25,7 @@ mpis_table *get_table(size_t *table_sz) {
     return table;
 }
 
-void add_entry(uint8_t target_type, const char *ifname, uint32_t selector, uint32_t target, uint8_t cidr, uint32_t target_data) {
+void add_entry(uint8_t target_type, const char *ifname, uint32_t selector, uint32_t target, uint8_t cidr, uint32_t target_data, uint8_t flags) {
     mpis_table *current_entry = &table[n_entries++];
     memset(current_entry, 0, sizeof(mpis_table));
 
@@ -50,6 +50,7 @@ void add_entry(uint8_t target_type, const char *ifname, uint32_t selector, uint3
     current_entry->target_type = target_type;
     current_entry->target = target;
     current_entry->target_data = target_data;
+    current_entry->target_flags = flags;
 }
 
 void store_retval(int val) {

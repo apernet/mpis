@@ -46,15 +46,15 @@ mpis_table
 
 mpis_entry
     : IIF IDENT SRC IP SLASH NUMBER ENCAP IP CUTOFF_TTL NUMBER entry_flags {
-        add_entry(TTYPE_ENCAP | TTYPE_GETFLAGS($11), $2, $4, $8, $6, $10);
+        add_entry(TTYPE_ENCAP, $2, $4, $8, $6, $10, $11);
         free($2);
     }
     | IIF IDENT DST IP SWAP IP CUTOFF_TTL NUMBER entry_flags {
-        add_entry(TTYPE_SWAP | TTYPE_GETFLAGS($9), $2, $4, $6, 0, $8);
+        add_entry(TTYPE_SWAP, $2, $4, $6, 0, $8, $9);
         free($2);
     }
     | IIF IDENT DST IP DECAP IP SLASH NUMBER entry_flags {
-        add_entry(TTYPE_DECAP | TTYPE_GETFLAGS($9), $2, $4, $6, $8, 0);
+        add_entry(TTYPE_DECAP, $2, $4, $6, $8, 0, $9);
         free($2);
     }
 

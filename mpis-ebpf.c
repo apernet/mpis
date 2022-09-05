@@ -145,7 +145,7 @@ SEC("xdp") int mpis(struct xdp_md *ctx) {
         }
     }
 
-    if (matched && entry->target_type & TFLAG_BYPASS_LINUX) {
+    if (matched && entry->target_flags & TFLAG_BYPASS_LINUX) {
         fib_params.family = AF_INET;
         fib_params.tos = ip->tos;
         fib_params.l4_protocol = ip->protocol;
