@@ -105,15 +105,15 @@ $ make
 To configure MPIS, you will need to define a MPIS route table. Syntax:
 
 ```
-iif <in-interface-name> src <network>/<length> encap <receiver> cutoff-ttl <ttl> [flags]
-iif <in-interface-name> dst <local-ip> swap <next-receiver> cutoff-ttl <ttl> [flags]
-iif <in-interface-name> dst <local-ip> decap <network>/<length> [flags]
+iif <in-interface-name> src <network>/<length> encap <receiver> cutoff-ttl <ttl> [flags ...]
+iif <in-interface-name> dst <local-ip> swap <next-receiver> cutoff-ttl <ttl> [flags ...]
+iif <in-interface-name> dst <local-ip> decap <network>/<length> [flags ...]
 ```
 
 There are three types of actions: `encap`, `swap`, and `decap`. And possible `flags` are:
 
 - `bypass-linux`: Bypass Linux network stack: perform routing table lookup directly in XDP and do IP forwarding directly in XDP. Note that with this enabled, Linux will not be able to see the packet at all, including tools like `tcpdump`. 
-- `override-frag`: Use bit 32 to 64 in the IP header (frag-related bits) to store the destination instead of using the source address field. This will allows MPIS to function in networks with reverse path filtering but will nuke the IP-layer fragmentation ability. 
+- `override-frag`: Use bit 32 to 64 in the IP header (frag-related bits) to store the destination instead of using the source address field. This allows MPIS to function in networks with reverse path filtering but will nuke the IP-layer fragmentation ability. 
 
 #### encap
 
@@ -185,4 +185,4 @@ If fragmentation is really that important - we can always reduce the subnet size
 
 #### Security consideration 
 
-Potentially, this will allows others to have your network send spoof packets against their source IP address. Not sure how useful that will be. 
+Potentially, this allows others to have your network send spoof packets against their source IP address. Not sure how useful that will be. 
