@@ -41,6 +41,10 @@ cutoff-ttl {
     return CUTOFF_TTL;
 }
 
+bypass-linux {
+    return BYPASS_LINUX;
+}
+
 \/ {
     return SLASH;
 }

@@ -6,6 +6,7 @@
 #include <linux/ip.h>
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_endian.h>
+#include <sys/socket.h>
 #include "mpis.h"
 #include "mpis-table.h"
 
@@ -47,35 +48,32 @@ static __always_inline void cksum(struct iphdr *ip) {
     ip->check = ~((sum & 0xffff) + (sum >> 16));
 }
 
-static __always_inline int do_encap(struct iphdr *ip, mpis_table *entry) {
+static __always_inline void do_encap(struct iphdr *ip, mpis_table *entry) {
     if (entry->target_data >= ip->ttl) {
         ip->daddr = entry->target;
-        goto encap_send;
+        return cksum(ip);
     }
 
     ip->id = (((__u16 *) &ip->saddr)[1] & entry->mask_last16) | (ip->id & ~entry->mask_last16);
     ip->saddr = ip->daddr;
     ip->daddr = entry->target;
 
-encap_send:
     cksum(ip);
-    return XDP_PASS;
 }
 
-static __always_inline int do_decap_or_swap(struct iphdr *ip, mpis_table *entry) {
+static __always_inline void do_decap_or_swap(struct iphdr *ip, mpis_table *entry) {
     if (entry->target_type == TTYPE_DECAP) {
         ip->daddr = ip->saddr;
         ip->saddr = bpf_htonl(bpf_ntohl(entry->target) | bpf_ntohs((ip->id & entry->mask_last16)));
     } else if (entry->target_type == TTYPE_SWAP) {
         if (entry->target_data >= ip->ttl) {
-            return XDP_PASS;
+            return;
         }
 
         ip->daddr = entry->target;
     }
 
     cksum(ip);
-    return XDP_PASS;
 }
 
 SEC("xdp") int mpis(struct xdp_md *ctx) {
@@ -84,10 +82,13 @@ SEC("xdp") int mpis(struct xdp_md *ctx) {
     struct ethhdr *eth = data;
     struct vlan_hdr *vhdr;
     struct iphdr *ip;
+    struct bpf_fib_lookup fib_params = {};
     void *l3hdr;
     mpis_table *entry = NULL;
     __u16 ether_proto;
     __u32 lpm_key[2];
+    int matched = 0;
+    long ret;
 
     if (data + sizeof(struct ethhdr) > data_end) {
         return XDP_DROP;
@@ -132,12 +133,36 @@ SEC("xdp") int mpis(struct xdp_md *ctx) {
     lpm_key[1] = ip->saddr;
     entry = bpf_map_lookup_elem(&encap_map, &lpm_key);
     if (entry != NULL && entry->iif == ctx->ingress_ifindex) {
-        return do_encap(ip, entry);
+        do_encap(ip, entry);
+        matched = 1;
     }
 
-    entry = bpf_map_lookup_elem(&decap_swap_map, &ip->daddr);
-    if (entry != NULL && entry->iif == ctx->ingress_ifindex) {
-        return do_decap_or_swap(ip, entry);
+    if (!matched) {
+        entry = bpf_map_lookup_elem(&decap_swap_map, &ip->daddr);
+        if (entry != NULL && entry->iif == ctx->ingress_ifindex) {
+            matched = 1;
+            do_decap_or_swap(ip, entry);
+        }
+    }
+
+    if (matched && entry->target_type & TFLAG_BYPASS_LINUX) {
+        fib_params.family = AF_INET;
+        fib_params.tos = ip->tos;
+        fib_params.l4_protocol = ip->protocol;
+        fib_params.sport = 0;
+        fib_params.dport = 0;
+        fib_params.tot_len = bpf_ntohs(ip->tot_len);
+        fib_params.ipv4_src = ip->saddr;
+        fib_params.ipv4_dst = ip->daddr;
+        fib_params.ifindex = ctx->ingress_ifindex;
+
+        ret = bpf_fib_lookup(ctx, &fib_params, sizeof(fib_params), 0);
+
+        if (ret == BPF_FIB_LKUP_RET_SUCCESS) {
+            __builtin_memcpy(eth->h_dest, fib_params.dmac, ETH_ALEN);
+            __builtin_memcpy(eth->h_source, fib_params.smac, ETH_ALEN);
+            return bpf_redirect(fib_params.ifindex, 0);
+        } 
     }
 
     return XDP_PASS;

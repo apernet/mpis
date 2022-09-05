@@ -91,12 +91,14 @@ $ make
 To configure MPIS, you will need to define a MPIS route table. Syntax:
 
 ```
-iif <in-interface-name> src <network>/<length> encap <receiver> cutoff-ttl <ttl>
-iif <in-interface-name> dst <local-ip> swap <next-receiver> cutoff-ttl <ttl>
-iif <in-interface-name> dst <local-ip> decap <network>/<length>
+iif <in-interface-name> src <network>/<length> encap <receiver> cutoff-ttl <ttl> [flags]
+iif <in-interface-name> dst <local-ip> swap <next-receiver> cutoff-ttl <ttl> [flags]
+iif <in-interface-name> dst <local-ip> decap <network>/<length> [flags]
 ```
 
-There are three types of actions: `encap`, `swap`, and `decap`.
+There are three types of actions: `encap`, `swap`, and `decap`. And possible `flags` are:
+
+- `bypass-linux`: Bypass Linux network stack: perform routing table lookup directly in XDP and do IP forwarding directly in XDP. Note that with this enabled, Linux will not be able to see the packet at all, including tools like `tcpdump`. 
 
 #### encap
 

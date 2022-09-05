@@ -26,6 +26,7 @@
 
 %union {
     uint32_t u32;
+    uint8_t u8;
     char *str;
 }
 
@@ -34,6 +35,9 @@
 %token SRC DST IIF
 %token ENCAP DECAP SWAP CUTOFF_TTL
 %token SLASH
+%token BYPASS_LINUX
+
+%type <u8> entry_flags entry_flag
 
 %%
 mpis_table
@@ -41,17 +45,31 @@ mpis_table
     | mpis_entry
 
 mpis_entry
-    : IIF IDENT SRC IP SLASH NUMBER ENCAP IP CUTOFF_TTL NUMBER {
-        add_entry(TTYPE_ENCAP, $2, $4, $8, $6, $10);
+    : IIF IDENT SRC IP SLASH NUMBER ENCAP IP CUTOFF_TTL NUMBER entry_flags {
+        add_entry(TTYPE_ENCAP | TTYPE_GETFLAGS($11), $2, $4, $8, $6, $10);
         free($2);
     }
-    | IIF IDENT DST IP SWAP IP CUTOFF_TTL NUMBER {
-        add_entry(TTYPE_SWAP, $2, $4, $6, 0, $8);
+    | IIF IDENT DST IP SWAP IP CUTOFF_TTL NUMBER entry_flags {
+        add_entry(TTYPE_SWAP | TTYPE_GETFLAGS($9), $2, $4, $6, 0, $8);
         free($2);
     }
-    | IIF IDENT DST IP DECAP IP SLASH NUMBER {
-        add_entry(TTYPE_DECAP, $2, $4, $6, $8, 0);
+    | IIF IDENT DST IP DECAP IP SLASH NUMBER entry_flags {
+        add_entry(TTYPE_DECAP | TTYPE_GETFLAGS($9), $2, $4, $6, $8, 0);
         free($2);
+    }
+
+entry_flags
+    : entry_flags entry_flag {
+        $$ = $1 | $2;
+    }
+    | entry_flag
+
+entry_flag
+    : %empty {
+        $$ = 0;
+    }
+    | BYPASS_LINUX {
+        $$ = TFLAG_BYPASS_LINUX;
     }
 
 %%

@@ -3,9 +3,14 @@
 #include <stdint.h>
 #include <unistd.h>
 
-#define TTYPE_ENCAP 1
-#define TTYPE_DECAP 2
-#define TTYPE_SWAP 3
+#define TTYPE_GETTYPE(x)    ((x) & 0x0f)
+#define TTYPE_GETFLAGS(x)   ((x) & 0xf0)
+
+#define TTYPE_ENCAP         0x01
+#define TTYPE_DECAP         0x02
+#define TTYPE_SWAP          0x03
+
+#define TFLAG_BYPASS_LINUX  0x10 // bypass linux network stack
 
 typedef struct _mpis_table {
     uint32_t iif;
@@ -19,7 +24,7 @@ typedef struct _mpis_table {
     // valid if type is not decap. data is cutoff-ttl value.
     uint8_t target_data;
 
-    // TTYPE_*
+    // TTYPE_* | TFLAG_*
     uint8_t target_type;
 } mpis_table;
 
