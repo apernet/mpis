@@ -123,7 +123,10 @@ echo -n 'testing ttl-cutoff... '
 timeout 5s ip netns exec "${send}" tcpdump -i link-sr -n 'icmp and src 1.2.3.4 and dst 10.0.0.254' -c1 > /dev/null 2>&1 && echo 'ok' || echo 'failed'
 
 echo -n 'testing fragmentation... '
-timeout 10 ip netns exec "${node1}" ping -I 1.2.3.4 5.6.7.8 -c1 > /dev/null 2>&1 && echo 'ok' || echo 'failed'
+timeout 5s ip netns exec "${node1}" ping -I 1.2.3.4 5.6.7.8 -c1 > /dev/null 2>&1 && echo 'ok' || echo 'failed'
+
+echo -n 'testing ip options... '
+timeout 5s ip netns exec "${node1}" ping -R -I 1.2.3.4 5.6.7.8 -c1 > /dev/null 2>&1 && echo 'ok' || echo 'failed'
 
 kill $ping_pid_1 || true
 kill $ping_pid_2 || true

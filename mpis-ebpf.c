@@ -10,6 +10,8 @@
 #include "mpis.h"
 #include "mpis-table.h"
 
+#define IPHDR_MAXLEN 60
+
 char _license[] SEC("license") = "GPL";
 
 struct {
@@ -33,35 +35,53 @@ struct vlan_hdr {
 };
 
 // todo: incremental checksum?
-static __always_inline void cksum(struct iphdr *ip) {
+static __always_inline void cksum(struct xdp_md *ctx, struct iphdr *ip) {
     __u32 sum = 0;
     __u16 *ptr = (__u16 *) ip;
+    __u16 options_len = ip->ihl * sizeof(__u32) - sizeof(struct iphdr);
     __u8 i;
 
     ip->check = 0;
 
     #pragma clang loop unroll(full)
-    for (i = 0; i < (int) sizeof(struct iphdr) / 2; ++i) {
+    for (i = 0; i < sizeof(struct iphdr) / sizeof(__u16); ++i) {
         sum += *ptr++;
+    }
+
+    // handle ip options
+    if (options_len > 0) {
+        #pragma clang loop unroll(full)
+        for (i = sizeof(struct iphdr) /  sizeof(__u16); i < IPHDR_MAXLEN / sizeof(__u16); ++i) {
+            if (((void *) ptr + sizeof(__u16)) > (void *) (long) ctx->data_end) {
+                break;
+            }
+
+            sum += *ptr++;
+            options_len -= sizeof(__u16);
+
+            if (options_len == 0) {
+                break;
+            }
+        }
     }
 
     ip->check = ~((sum & 0xffff) + (sum >> 16));
 }
 
-static __always_inline void do_encap(struct iphdr *ip, mpis_table *entry) {
+static __always_inline void do_encap(struct xdp_md *ctx, struct iphdr *ip, mpis_table *entry) {
     if (entry->target_data >= ip->ttl) {
         ip->daddr = entry->target;
-        return cksum(ip);
+        return cksum(ctx, ip);
     }
 
     ip->id = (((__u16 *) &ip->saddr)[1] & entry->mask_last16) | (ip->id & ~entry->mask_last16);
     ip->saddr = ip->daddr;
     ip->daddr = entry->target;
 
-    cksum(ip);
+    cksum(ctx, ip);
 }
 
-static __always_inline void do_decap_or_swap(struct iphdr *ip, mpis_table *entry) {
+static __always_inline void do_decap_or_swap(struct xdp_md *ctx, struct iphdr *ip, mpis_table *entry) {
     if (entry->target_type == TTYPE_DECAP) {
         ip->daddr = ip->saddr;
         ip->saddr = bpf_htonl(bpf_ntohl(entry->target) | bpf_ntohs((ip->id & entry->mask_last16)));
@@ -73,12 +93,12 @@ static __always_inline void do_decap_or_swap(struct iphdr *ip, mpis_table *entry
         ip->daddr = entry->target;
     }
 
-    cksum(ip);
+    cksum(ctx, ip);
 }
 
 SEC("xdp") int mpis(struct xdp_md *ctx) {
-    void *data_end = (void *)(long) ctx->data_end;
-    void *data = (void *)(long) ctx->data;
+    void *data_end = (void *) (long) ctx->data_end;
+    void *data = (void *) (long) ctx->data;
     struct ethhdr *eth = data;
     struct vlan_hdr *vhdr;
     struct iphdr *ip;
@@ -129,11 +149,15 @@ SEC("xdp") int mpis(struct xdp_md *ctx) {
 
     ip = l3hdr;
 
+    if (l3hdr + ip->ihl * sizeof(__u32) > data_end) {
+        return XDP_DROP;
+    }
+
     lpm_key[0] = 32;
     lpm_key[1] = ip->saddr;
     entry = bpf_map_lookup_elem(&encap_map, &lpm_key);
     if (entry != NULL && entry->iif == ctx->ingress_ifindex) {
-        do_encap(ip, entry);
+        do_encap(ctx, ip, entry);
         matched = 1;
     }
 
@@ -141,7 +165,7 @@ SEC("xdp") int mpis(struct xdp_md *ctx) {
         entry = bpf_map_lookup_elem(&decap_swap_map, &ip->daddr);
         if (entry != NULL && entry->iif == ctx->ingress_ifindex) {
             matched = 1;
-            do_decap_or_swap(ip, entry);
+            do_decap_or_swap(ctx, ip, entry);
         }
     }
 
