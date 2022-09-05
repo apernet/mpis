@@ -10,6 +10,9 @@
 #include "mpis.h"
 #include "mpis-table.h"
 
+#define likely(x)   __builtin_expect(!!(x), 1)
+#define unlikely(x) __builtin_expect(!!(x), 0)
+
 #define IPHDR_MAXLEN 60
 
 char _license[] SEC("license") = "GPL";
@@ -132,7 +135,7 @@ SEC("xdp") int mpis(struct xdp_md *ctx) {
     int matched = 0;
     long ret;
 
-    if (data + sizeof(struct ethhdr) > data_end) {
+    if (unlikely(data + sizeof(struct ethhdr) > data_end)) {
         return XDP_DROP;
     }
 
@@ -165,13 +168,13 @@ SEC("xdp") int mpis(struct xdp_md *ctx) {
         return XDP_PASS; // don't care
     }
 
-    if (l3hdr + sizeof(struct iphdr) > data_end) {
+    if (unlikely(l3hdr + sizeof(struct iphdr) > data_end)) {
         return XDP_DROP;
     }
 
     ip = l3hdr;
 
-    if (l3hdr + ip->ihl * sizeof(__u32) > data_end) {
+    if (unlikely(l3hdr + ip->ihl * sizeof(__u32) > data_end)) {
         return XDP_DROP;
     }
 
@@ -212,7 +215,7 @@ SEC("xdp") int mpis(struct xdp_md *ctx) {
 
         ret = bpf_fib_lookup(ctx, &fib_params, sizeof(fib_params), 0);
 
-        if (ret == BPF_FIB_LKUP_RET_SUCCESS) {
+        if (likely(ret == BPF_FIB_LKUP_RET_SUCCESS)) {
             __builtin_memcpy(eth->h_dest, fib_params.dmac, ETH_ALEN);
             __builtin_memcpy(eth->h_source, fib_params.smac, ETH_ALEN);
             return bpf_redirect(fib_params.ifindex, 0);
